@@ -1,12 +1,18 @@
 import re
 from urllib.parse import urlparse
+from bs4 import BeautifulSoup
+
+from utils import get_logger
+
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
     return [link for link in links if is_valid(link)]
 
 def extract_next_links(url, resp):
-    # Implementation requred.
+
+    
+
     return list()
 
 def is_valid(url):
