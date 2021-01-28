@@ -18,9 +18,10 @@ def extract_next_links(url, resp):
         for link in soup.findAll('a'):
             try:
                 next_link.append(link['href'])
+            # href attribute does not exist in <a> tag.
             except KeyError:
                 print("Status Code:", resp.status, "\nError Message: href attribute does not exist.")
-        
+    # Checks for restricted page.
     except AttributeError:
         print("Status Code:", resp.status, "\nError Message:", resp.error)
 
@@ -34,8 +35,7 @@ def is_valid(url):
 
         valid_domain = False
 
-        print(parsed.netloc)
-
+        # Check Domain : url needs to be in the Valid url set
         for domain in VALID_URLS:
             if domain in parsed.netloc:
                 if parsed.netloc == 'today.uci.edu' and parsed.path[:41] == '/department/information_computer_sciences':
