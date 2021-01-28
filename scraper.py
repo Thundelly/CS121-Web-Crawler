@@ -1,25 +1,51 @@
 import re
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
+import lxml
 
 from utils import get_logger
 
+VALID_URLS = {'ics.uci.edu', '.cs.uci.edu', '.informatics.uci.edu', '.stat.uci.edu', 'today.uci.edu'}
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
     return [link for link in links if is_valid(link)]
 
 def extract_next_links(url, resp):
+    next_link = []
+    try:
+        soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
+        for link in soup.findAll('a'):
+            try:
+                next_link.append(link['href'])
+            except KeyError:
+                print("Status Code:", resp.status, "\nError Message: href attribute does not exist.")
+        
+    except AttributeError:
+        print("Status Code:", resp.status, "\nError Message:", resp.error)
 
-    
-
-    return list()
+    return next_link
 
 def is_valid(url):
     try:
         parsed = urlparse(url)
         if parsed.scheme not in set(["http", "https"]):
             return False
+
+        valid_domain = False
+
+        print(parsed.netloc)
+
+        for domain in VALID_URLS:
+            if domain in parsed.netloc:
+                if parsed.netloc == 'today.uci.edu' and parsed.path[:41] == '/department/information_computer_sciences':
+                    valid_domain = True
+                else:
+                    valid_domain = False
+
+        if valid_domain == False:
+            return False
+
         return not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
             + r"|png|tiff?|mid|mp2|mp3|mp4"
