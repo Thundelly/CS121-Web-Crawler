@@ -18,9 +18,11 @@ def extract_next_links(url, resp):
         for link in soup.findAll('a'):
             try:
                 next_link.append(link['href'])
+    
             # href attribute does not exist in <a> tag.
             except KeyError:
                 print("Status Code:", resp.status, "\nError Message: href attribute does not exist.")
+    
     # Checks for restricted page.
     except AttributeError:
         print("Status Code:", resp.status, "\nError Message:", resp.error)
