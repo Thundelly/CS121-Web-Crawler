@@ -1,11 +1,12 @@
 import re
-from urllib.parse import urlparse, urldefrag
+from urllib.parse import urlparse, urldefrag, urlsplit, urlunsplit
 from bs4 import BeautifulSoup
 import requests
 from requests.exceptions import HTTPError
 
 VALID_URLS = {'ics.uci.edu', '.cs.uci.edu', '.informatics.uci.edu', '.stat.uci.edu', 'today.uci.edu'}
 INVALID_PATH = {'pdf', 'ppt', 'css', 'js'}
+CRAWLED = set()
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
@@ -13,12 +14,18 @@ def scraper(url, resp):
 
 def extract_next_links(url, resp):
     next_link = []
+    parsed = urlparse(url)
+    # t = urlunsplit(urlsplit(url)._replace(query="", fragment=""))
 
     if 200 <= resp.status <= 599:
+
         soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
         for link in soup.find_all('a'):
             l = link.get('href')
-            if l != '#' and is_valid(l):
+            t = urlunsplit(urlsplit(l)._replace(query="", fragment=""))
+            if l != '#' and is_valid(l) and t not in CRAWLED:
+                # print(t, t not in CRAWLED)
+                CRAWLED.add(t)
                 # print(l)
 
                 # Check for web error message : for debug purposes 
