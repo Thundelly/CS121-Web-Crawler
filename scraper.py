@@ -2,6 +2,7 @@ import re
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 import lxml
+import requests
 
 from utils import get_logger
 
@@ -43,7 +44,7 @@ def is_valid(url):
                 if parsed.netloc == 'today.uci.edu' and parsed.path[:41] == '/department/information_computer_sciences':
                     valid_domain = True
                 else:
-                    valid_domain = False
+                    valid_domain = True
 
         if valid_domain == False:
             return False
