@@ -5,6 +5,20 @@ import requests
 from requests.exceptions import HTTPError
 
 VALID_URLS = {'ics.uci.edu', '.cs.uci.edu', '.informatics.uci.edu', '.stat.uci.edu', 'today.uci.edu'}
+BLACKLISTED_URLS = {
+    'https://today.uci.edu/department/information_computer_sciences/calendar',
+    'https://wics.ics.uci.edu/events/',
+    'https://evoke.ics.uci.edu/hollowing-i-in-the-authorship-of-letters-a-note-on-flusser-and-surveillance/?',
+    'https://evoke.ics.uci.edu/qs-personal-data-landscapes-poster/?',
+    'https://swiki.ics.uci.edu/doku.php/start?',
+    # 'https://swiki.ics.uci.edu/doku.php/hardware:laptops?',
+    'https://swiki.ics.uci.edu/doku.php',
+    'https://wics.ics.uci.edu/a/language.php',
+    'https://wics.ics.uci.edu/language.php',
+    'https://wics.ics.uci.edu/recover/initiate',
+    'https://ngs.ics.uci.edu/blog/page',
+    'https://ngs.ics.uci.edu/category',
+    }
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
@@ -14,20 +28,15 @@ def extract_next_links(url, resp):
     next_link = []
     try:
 
-        # Check if url status is withing 200 - 202 
-        # -------------------------------------------------------------------------------------------------------
-        # 200 = OK - request has succeeded
-        # 201 = Created - request has been fulfilled and resulted in a new resource being created
-        # 202 = Accepted - request has been accepted for processing, but the processing has not been completed
-        # -------------------------------------------------------------------------------------------------------
-        if 200 <= resp.status <= 202 and check_traps(url):
+        # Check if url status is withing 200 - 399
+        if 200 <= resp.status <= 399:
             parsed = urlparse(url)
             host = "https://" + parsed.netloc
 
             soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
             for link in soup.findAll('a'):
                 try:
-                    # constructing absolute URLs, avoiding duplicate contents 
+                    # transform relative into absolute URLs, avoiding duplicate contents 
                     l = urljoin(host, link['href'])
                     next_link.append(urldefrag(l)[0])
         
@@ -40,21 +49,6 @@ def extract_next_links(url, resp):
         print("Status Code:", resp.status, "\nError Message:", resp.error)
 
     return next_link
-
-def check_traps(url):
-    parsed = urlparse(url)
-
-    # Blacklist
-    if parsed.netloc == "today.uci.edu":
-        return False
-
-    if parsed.netloc == "wics.ics.uci.edu":
-        return False
-    
-    if parsed.netloc == "evoke.ics.uci.edu":
-        return False
-
-    return True
 
 def is_valid(url):
     try:
@@ -81,6 +75,10 @@ def is_valid(url):
         #     if path in parsed.path:
         #         return False
             # print(parsed.path.lower())
+
+        for bl in BLACKLISTED_URLS:
+            if bl in url:
+                return False
 
         return not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
