@@ -8,25 +8,44 @@ from simhash import Simhash
 from utils import get_logger
 
 VALID_URLS = {'ics.uci.edu', '.cs.uci.edu', '.informatics.uci.edu', '.stat.uci.edu', 'today.uci.edu'}
+
 BLACKLISTED_URLS = {
     'https://today.uci.edu/department/information_computer_sciences/calendar',
     'https://wics.ics.uci.edu/events/',
-    'https://evoke.ics.uci.edu/hollowing-i-in-the-authorship-of-letters-a-note-on-flusser-and-surveillance/?',
-    'https://evoke.ics.uci.edu/qs-personal-data-landscapes-poster/?'
-    'https://swiki.ics.uci.edu/doku.php/start?',
-    'https://swiki.ics.uci.edu/doku.php/hardware:laptops?',
     'https://wics.ics.uci.edu/a/language.php',
     'https://wics.ics.uci.edu/language.php',
     'https://wics.ics.uci.edu/recover/initiate',
     'https://ngs.ics.uci.edu/blog/page',
     'https://ngs.ics.uci.edu/category',
+    'https://ngs.ics.uci.edu/tag/',
+    'https://ngs.ics.uci.edu/author/',
+    'https://isg.ics.uci.edu/events'
+}
+
+REMOVE_QUERY = {
+    'https://swiki.ics.uci.edu/doku.php/',
+    'https://evoke.ics.uci.edu/',
+    'https://grape.ics.uci.edu/',
+    'https://wics.ics.uci.edu/',
+    'https://www.ics.uci.edu/doku.php/start'
 }
 
 logger = get_logger("SCRAPER")
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
-    return [link for link in links if is_valid(link)]
+    link_list = []
+    # return [link for link in links if is_valid(link)]
+    for link in links:
+        if is_valid(link):
+            added_link = link
+            for rq in REMOVE_QUERY:
+                if rq in link and '?' in link:
+                    added_link = link[:link.find('?')]
+                    logger.info(f'Got {added_link} from {link}')
+            link_list.append(added_link)
+    return link_list
+
 
 def extract_next_links(url, resp):
     next_link = []
@@ -73,6 +92,7 @@ def is_valid(url):
         for bl in BLACKLISTED_URLS:
             if bl in url:
                 return False
+            
 
         return not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
@@ -82,7 +102,7 @@ def is_valid(url):
             + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
             + r"|epub|dll|cnf|tgz|sha1"
             + r"|thmx|mso|arff|rtf|jar|csv"
-            + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())
+            + r"|rm|smil|wmv|swf|wma|zip|rar|gz|z|zip)$", parsed.path.lower())
 
     except TypeError:
         print ("TypeError for ", parsed)
