@@ -1,19 +1,57 @@
 import re
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urldefrag, urlsplit, urlunsplit, urljoin
 from bs4 import BeautifulSoup
 import lxml
+import requests
+from simhash import Simhash
+
+from utils import get_logger
 
 VALID_URLS = {'ics.uci.edu', '.cs.uci.edu', '.informatics.uci.edu', '.stat.uci.edu', 'today.uci.edu'}
+BLACKLISTED_URLS = {
+    'https://today.uci.edu/department/information_computer_sciences/calendar',
+    'https://wics.ics.uci.edu/events/',
+    'https://evoke.ics.uci.edu/hollowing-i-in-the-authorship-of-letters-a-note-on-flusser-and-surveillance/?',
+    'https://evoke.ics.uci.edu/qs-personal-data-landscapes-poster/?'
+    'https://swiki.ics.uci.edu/doku.php/start?',
+    'https://swiki.ics.uci.edu/doku.php/hardware:laptops?',
+    'https://wics.ics.uci.edu/a/language.php',
+    'https://wics.ics.uci.edu/language.php',
+    'https://wics.ics.uci.edu/recover/initiate',
+    'https://ngs.ics.uci.edu/blog/page',
+    'https://ngs.ics.uci.edu/category',
+}
+
+logger = get_logger("SCRAPER")
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
     return [link for link in links if is_valid(link)]
 
 def extract_next_links(url, resp):
-    soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
     next_link = []
-    for link in soup.find_all('a'):
-        next_link.append(link.get('href'))
+    try:
+        if 200 <= resp.status <= 399:
+            parsed = urlparse(url)
+            host = "https://" + parsed.netloc
+
+            soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
+            for link in soup.findAll('a'):
+                try:
+                    # constructing absolute URLs, avoiding duplicate contents 
+                    l = urljoin(host, link['href'])
+                    next_link.append(urldefrag(l)[0])
+        
+                # href attribute does not exist in <a> tag.
+                except KeyError:
+                    print("Status Code:", resp.status, "\nError Message: href attribute does not exist.")
+        else:
+            print("Status Code:", resp.status, " is not between 200 - 399")
+    
+    # Checks for restricted page.
+    except AttributeError:
+        print("Status Code:", resp.status, "\nError Message:", resp.error)
+
     return next_link
 
 def is_valid(url):
@@ -31,11 +69,16 @@ def is_valid(url):
                     valid_domain = True
         if valid_domain == False:
             return False
+        
+        for bl in BLACKLISTED_URLS:
+            if bl in url:
+                return False
+
         return not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
             + r"|png|tiff?|mid|mp2|mp3|mp4"
             + r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf"
-            + r"|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names"
+            + r"|ps|eps|tex|ppt|ppsx|pptx|doc|docx|xls|xlsx|names"
             + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
             + r"|epub|dll|cnf|tgz|sha1"
             + r"|thmx|mso|arff|rtf|jar|csv"
