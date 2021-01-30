@@ -5,7 +5,7 @@ import requests
 
 from utils import get_logger
 
-VALID_URLS = {'ics.uci.edu', '.cs.uci.edu', '.informatics.uci.edu', '.stat.uci.edu', 'today.uci.edu'}
+VALID_URLS = {'.ics.uci.edu', '.cs.uci.edu', '.informatics.uci.edu', '.stat.uci.edu', 'today.uci.edu'}
 
 BLACKLISTED_URLS = {
     'https://today.uci.edu/department/information_computer_sciences/calendar',
@@ -18,16 +18,23 @@ BLACKLISTED_URLS = {
     'https://ngs.ics.uci.edu/tag/',
     'https://ngs.ics.uci.edu/author/',
     'https://isg.ics.uci.edu/events',
-    'https://ics.uci.edu/publications',
-
+    'https://www.ics.uci.edu/publications',
+    'https://www.ics.uci.edu/?',
+    'https://www.ics.uci.edu?',
+    'https://www.informatics.uci.edu/page',
+    'https://www.cs.uci.edu/events',
+    'https://www.informatics.uci.edu/very-top-footer-menu-items/news/page',
+    'https://cbcl.ics.uci.edu/wgEncodeBroadHistone'
 }
 
 REMOVE_QUERY = {
-    'https://swiki.ics.uci.edu/doku.php/',
+    'https://swiki.ics.uci.edu/doku.php',
     'https://evoke.ics.uci.edu/',
     'https://grape.ics.uci.edu/',
     'https://wics.ics.uci.edu/',
-    'https://www.ics.uci.edu/doku.php/start'
+    'https://www.ics.uci.edu/doku.php',
+    'https://intranet.ics.uci.edu/doku.php',
+    'https://cbcl.ics.uci.edu/doku.php'
 }
 
 logger = get_logger("SCRAPER")
@@ -97,24 +104,24 @@ def is_valid(url):
         if re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
             + r"|png|tiff?|mid|mp2|mp3|mp4"
-            + r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf|bam|sam"
+            + r"|wav|avi|mov|mpg|mpeg|ram|m4v|mkv|ogg|ogv|pdf|bam|sam"
             + r"|ps|eps|tex|ppt|ppsx|pptx|doc|docx|xls|xlsx|names"
             + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
             + r"|epub|dll|cnf|tgz|sha1"
             + r"|thmx|mso|arff|rtf|jar|csv"
-            + r"|rm|smil|wmv|swf|wma|zip|rar|gz|z|zip)$", parsed.query.lower()):
+            + r"|rm|smil|wmv|swf|wma|war|zip|rar|gz|z|zip)$", parsed.query.lower()):
             return False
 
 
         return not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
             + r"|png|tiff?|mid|mp2|mp3|mp4"
-            + r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf|bam|sam"
+            + r"|wav|avi|mov|mpg|mpeg|ram|m4v|mkv|ogg|ogv|pdf|bam|sam"
             + r"|ps|eps|tex|ppt|ppsx|pptx|doc|docx|xls|xlsx|names"
             + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
             + r"|epub|dll|cnf|tgz|sha1"
             + r"|thmx|mso|arff|rtf|jar|csv"
-            + r"|rm|smil|wmv|swf|wma|zip|rar|gz|z|zip)$", parsed.path.lower())
+            + r"|rm|smil|wmv|swf|wma|war|zip|rar|gz|z|zip)$", parsed.path.lower())
 
     except TypeError:
         print ("TypeError for ", parsed)
