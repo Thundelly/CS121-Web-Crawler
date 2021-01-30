@@ -1,11 +1,15 @@
 import re
+import requests
+import nltk
+from nltk.tokenize import RegexpTokenizer
+from nltk.stem import WordNetLemmatizer
 from urllib.parse import urlparse, urldefrag, urlsplit, urlunsplit, urljoin
 from bs4 import BeautifulSoup
-import requests
-
 from utils import get_logger
 
-VALID_URLS = {'.ics.uci.edu', '.cs.uci.edu', '.informatics.uci.edu', '.stat.uci.edu', 'today.uci.edu'}
+import time
+
+VALID_URLS = {'ics.uci.edu', '.cs.uci.edu', '.informatics.uci.edu', '.stat.uci.edu', 'today.uci.edu'}
 
 BLACKLISTED_URLS = {
     'https://today.uci.edu/department/information_computer_sciences/calendar',
@@ -39,8 +43,29 @@ REMOVE_QUERY = {
 
 logger = get_logger("SCRAPER")
 
+def tokenizer(text):
+    nltk.data.path.append('./nltk_data/')
+
+    retokenizer = RegexpTokenizer('[a-zA-Z0-9]+')
+    tokens = retokenizer.tokenize(text)
+
+    print("Raw words:", tokens, "\n")
+
+    lm = WordNetLemmatizer()
+    tokens = [lm.lemmatize(w, pos="v") for w in tokens]
+
+    print("Word roots:", tokens, "\n")
+
+    print("WAITING NOW")
+    time.sleep(20)
+
 def scraper(url, resp):
     links = extract_next_links(url, resp)
+    link_list = filter_links(links)
+
+    return link_list
+
+def filter_links(links):
     link_list = []
     # return [link for link in links if is_valid(link)]
     for link in links:
@@ -51,8 +76,8 @@ def scraper(url, resp):
                     added_link = link[:link.find('?')]
                     logger.info(f'Got {added_link} from {link}')
             link_list.append(added_link)
-    return link_list
 
+    return link_list
 
 def extract_next_links(url, resp):
     next_link = []
@@ -62,6 +87,7 @@ def extract_next_links(url, resp):
             host = "https://" + parsed.netloc
 
             soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
+            print(soup.prettify())
             for link in soup.findAll('a'):
                 try:
                     # constructing absolute URLs, avoiding duplicate contents 
@@ -126,3 +152,9 @@ def is_valid(url):
     except TypeError:
         print ("TypeError for ", parsed)
         raise
+
+if __name__ == '__main__':
+    # tokenizer("this isn't a word what about mother-in-law but this uses the punctuations like , and . !@#$%^&*()-= and.also")
+    # tokenizer('fly flew flown, eat eaten, have has had, go goes gone going went')
+    # tokenizer('is am are was were been being')
+    tokenizer('fish fishes book books church churches')
