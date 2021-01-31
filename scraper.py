@@ -2,8 +2,6 @@ import re
 import ssl
 import os
 import json
-import pprint
-from urllib import parse
 
 import nltk
 from nltk.tokenize import RegexpTokenizer
@@ -20,6 +18,7 @@ import time
 scraper_logger = get_logger("SCRAPER")
 crawler_logger = get_logger("CRAWLER")
 
+
 def reset_link_dict():
     link_dict = {
         'counter': {
@@ -31,15 +30,17 @@ def reset_link_dict():
     with open('link_dict.json', 'w') as json_file:
         json.dump(link_dict, json_file)
 
+
 def scraper(url, resp):
     links = extract_next_links(url, resp)
     link_list = filter_links(links)
-    
+
     # get_link_dict(link_list)
     scrape_words(url, resp)
     write_report()
 
     return link_list
+
 
 def extract_next_links(url, resp):
     next_link = []
@@ -179,25 +180,56 @@ def tokenize(text):
 
 def scrape_words(url, resp):
 
+    try:
+        # Read the current state of json file and load it to word_dict
+        with open('word_dict.json', 'r') as json_file:
+            word_dict = json.load(json_file)
+        # If the file is empty, set word_dict to an empty dict
+    except json.decoder.JSONDecodeError:
+        word_dict = {
+            'counter': {
+                'URL_with_most_words': {},
+                '50_most_common_words': {}
+            }
+        }
+
     download_nltk_library()
 
     try:
         soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
         text = soup.text
-        
+        token_list = tokenize(text)
+        stopword_list = stopwords.words('english')
+        token_list_without_stopwords = [
+            token for token in token_list if token not in stopword_list]
+
         print(url)
-        print(tokenize(text))
-        # print(stopwords.words('english'))
+        print("\nText:", token_list)
+        print("\nStopwords:", stopword_list)
+        print("\nText without stopwords:", token_list_without_stopwords)
 
-        time.sleep(20)
+        word_dict[url] = len(token_list)
 
+        with open('word_dict.json', 'w') as json_file:
+            json.dump(word_dict, json_file)
+
+        time.sleep(3)
 
     except AttributeError:
         print("Status Code: ", resp.status, "\nError Message:", resp.error)
 
+
 def get_link_dict(link_list):
-    with open('link_dict.json', 'r') as json_file:
-        link_dict = json.load(json_file)
+    try:
+        with open('link_dict.json', 'r') as json_file:
+            link_dict = json.load(json_file)
+    except json.decoder.JSONDecodeError:
+        link_dict = {
+            'counter': {
+                'total_unique_pages': 0,
+                'ics.uci.edu_subdomains': {}
+            }
+        }
 
     for link in link_list:
         parsed_url = urlparse(link)
@@ -212,25 +244,27 @@ def get_link_dict(link_list):
         # Add it along its subdomain and path
         if domain not in link_dict:
             link_dict[domain] = [{subdomain: [path]}]
-            link_dict['counter']['total_unique_pages'] += 1     # Increment unique page count
-            
+            # Increment unique page count
+            link_dict['counter']['total_unique_pages'] += 1
+
             # Increment ics.uc.edu subdomain count
             if domain == 'ics.uci.edu':
                 link_dict['counter']['ics.uci.edu_subdomains'][subdomain] = 1
-        
+
         # If the domain is in the dictionary
         else:
             # Check whether subdomain is in the dictionary
             for nested_dict in link_dict[domain]:
                 if subdomain in nested_dict:
                     subdomain_found = True
-            
+
             # If subdomain is not in the dictionary
             # Add the subdomain and its path
             if not subdomain_found:
                 link_dict[domain].append({subdomain: [path]})
-                link_dict['counter']['total_unique_pages'] += 1     # Increment unique page count
-        
+                # Increment unique page count
+                link_dict['counter']['total_unique_pages'] += 1
+
                 # Increment ics.uc.edu subdomain count
                 if domain == 'ics.uci.edu':
                     link_dict['counter']['ics.uci.edu_subdomains'][subdomain] = 1
@@ -244,21 +278,20 @@ def get_link_dict(link_list):
                     if subdomain in sub:
                         if path not in sub[subdomain]:
                             sub[subdomain].append(path)
-                            link_dict['counter']['total_unique_pages'] += 1     # Increment unique page count
-                
+                            # Increment unique page count
+                            link_dict['counter']['total_unique_pages'] += 1
+
                             # Increment ics.uc.edu subdomain count
                             if domain == 'ics.uci.edu':
                                 link_dict['counter']['ics.uci.edu_subdomains'][subdomain] += 1
 
-
-    # pp = pprint.PrettyPrinter(indent=2)
-    # pp.pprint(link_dict)
-
     with open('link_dict.json', 'w') as json_file:
         json.dump(link_dict, json_file)
 
+
 def write_report():
     pass
+
 
 if __name__ == '__main__':
     # tokenizer("this isn't a word what about mother-in-law but this uses the punctuations like , and . !@#$%^&*()-= and.also")
