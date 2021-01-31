@@ -290,7 +290,19 @@ def get_link_dict(link_list):
 
 
 def write_report():
-    pass
+    # Open the json file to get data 
+    with open('link_dict.json', 'r') as json_file:
+        data = json.load(json_file)
+
+    # Open the text file to write the report 
+    with open('report.txt', 'w') as report_file: 
+        # 1. How many unique pages did you find?
+        report_file.write('Total Unique Pages: {}\n\n'.format(data['counter']['total_unique_pages']))
+
+        # 4. How many subdomains did you find in the ics.uci.edu domain?
+        report_file.write('Total ics.uci.edu subdomain, written in [URL, number] format:\n')
+        for subdomain, count  in data['counter']['ics.uci.edu_subdomains'].items():
+            report_file.write('http://{}.ics.uci.edu, {}\n'.format(subdomain, count))
 
 
 if __name__ == '__main__':
