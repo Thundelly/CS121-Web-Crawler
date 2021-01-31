@@ -1,4 +1,10 @@
-VALID_URLS = {'.ics.uci.edu', '.cs.uci.edu', '.informatics.uci.edu', '.stat.uci.edu', 'today.uci.edu'}
+VALID_URLS = {
+    '.ics.uci.edu', 
+    '.cs.uci.edu', 
+    '.informatics.uci.edu', 
+    '.stat.uci.edu', 
+    'today.uci.edu'
+    }
 
 BLACKLISTED_URLS = {
     'https://today.uci.edu/department/information_computer_sciences/calendar',
