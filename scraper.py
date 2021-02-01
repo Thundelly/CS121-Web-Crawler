@@ -2,8 +2,7 @@ import re
 import ssl
 import os
 import json
-import pprint
-from urllib import parse
+import collections
 
 import nltk
 from nltk.tokenize import RegexpTokenizer
@@ -15,45 +14,41 @@ from bs4 import BeautifulSoup
 from utils import get_logger
 from constants import VALID_URLS, BLACKLISTED_URLS, REMOVE_QUERY
 
-import time
-import requests
 
 scraper_logger = get_logger("SCRAPER")
 crawler_logger = get_logger("CRAWLER")
 
-def reset_link_dict():
-    link_dict = {
-        'counter': {
-            'total_unique_pages': 0,
-            'ics.uci.edu_subdomains': {}
-        }
-    }
-
-    with open('link_dict.json', 'w') as json_file:
-        json.dump(link_dict, json_file)
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
     link_list = filter_links(links)
-    
-    get_link_dict(link_list)
-    scrape_words(url, resp)
-    write_report()
+
+    if 200 <= resp.status <= 399:
+        get_link_dict(link_list)
+        scrape_words(url, resp)
+        write_report()
 
     return link_list
 
+
 def extract_next_links(url, resp):
+    # Creating an empty list to store urls 
     next_link = []
     try:
+        # Check if the input url is valid (status between 200-399)
+        # If not valid, ignore the input url and return empty list
         if 200 <= resp.status <= 399:
-            get_permission(url)
+            # Prepare the input url to construct absolute URLs 
             parsed = urlparse(url)
             host = "https://" + parsed.netloc
 
+            # Extract data from HTML 
             soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
+            # Find all urls within the input url 
             for link in soup.findAll('a'):
                 try:
-                    # constructing absolute URLs, avoiding duplicate contents
+                    # constructing absolute URLs from relative URLs and 
+                    # add the absolute URLs without the fragment part to next_link list
                     l = urljoin(host, link['href'])
                     next_link.append(urldefrag(l)[0])
 
@@ -62,6 +57,7 @@ def extract_next_links(url, resp):
                     print("Status Code:", resp.status,
                           "\nError Message: href attribute does not exist.")
         else:
+            # url is invalid
             print("Status Code:", resp.status, " is not between 200 - 399")
 
     # Checks for restricted page.
@@ -96,13 +92,17 @@ def filter_links(links):
 
     return link_list
 
-
+  
 def is_valid(url):
     try:
         parsed = urlparse(url)
+
+        # Check if the input url has http or https
+        # If not, returns False
         if parsed.scheme not in set(["http", "https"]):
             return False
 
+        # Check if the input url witthin the valid domain set
         valid_url = False
         for domain in VALID_URLS:
             if domain in parsed.netloc:
@@ -114,10 +114,13 @@ def is_valid(url):
         if valid_url == False:
             return False
 
+        # Check if the input url is in the Blacklisted url set
+        # If yes, returns false 
         for bl in BLACKLISTED_URLS:
             if bl in url:
                 return False
 
+        # Check for the input url query that ends with one of these tags 
         if re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
             + r"|png|tiff?|mid|mp2|mp3|mp4"
@@ -125,10 +128,11 @@ def is_valid(url):
             + r"|ps|eps|tex|ppt|ppsx|pptx|doc|docx|xls|xlsx|names"
             + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
             + r"|epub|dll|cnf|tgz|sha1|odc|scm"
-            + r"|thmx|mso|arff|rtf|jar|csv|apk"
+            + r"|thmx|mso|arff|rtf|jar|csv"
                 + r"|rm|smil|wmv|swf|wma|war|zip|rar|gz|z|zip)$", parsed.query.lower()):
             return False
 
+        # Check for the input url path that ends with one of these tags 
         return not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
             + r"|png|tiff?|mid|mp2|mp3|mp4"
@@ -136,7 +140,7 @@ def is_valid(url):
             + r"|ps|eps|tex|ppt|ppsx|pptx|doc|docx|xls|xlsx|names"
             + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
             + r"|epub|dll|cnf|tgz|sha1|odc|scm"
-            + r"|thmx|mso|arff|rtf|jar|csv|apk"
+            + r"|thmx|mso|arff|rtf|jar|csv"
             + r"|rm|smil|wmv|swf|wma|war|zip|rar|gz|z|zip)$", parsed.path.lower())
 
     except TypeError:
@@ -181,25 +185,98 @@ def tokenize(text):
 
 def scrape_words(url, resp):
 
+    try:
+        # Read the current state of json file and load it to word_dict
+        with open('word_dict.json', 'r') as json_file:
+            word_dict = json.load(json_file)
+        # If the file is empty, set word_dict to an empty dict
+    except json.decoder.JSONDecodeError:
+        word_dict = {
+            'counter': {
+                'URL_with_most_words': {},
+                '50_most_common_words': {}
+            },
+            'URL_list': {},
+            'word_list': {}
+        }
+
     download_nltk_library()
 
     try:
         soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
         text = soup.text
+        token_list = tokenize(text)
+        stopword_list = stopwords.words('english')
+        token_list_without_stopwords = [
+            token for token in token_list if token not in stopword_list]
+
+        # print(url)
+        # print("\nText:", token_list)
+        # print("\nStopwords:", stopword_list)
+        # print("\nText without stopwords:", token_list_without_stopwords)
+
+        # Add URL to URL_list with number of words in it
+        word_dict['URL_list'][url] = len(token_list)
+
+        try:
+            # Find out current most number of words in a website
+            current_number_of_words = list(word_dict['counter']['URL_with_most_words'].values())[0]
+            # If the new website has greater number of words
+            # replace the URL_with_most_words of words
+            if len(token_list) > current_number_of_words:
+                word_dict['counter']['URL_with_most_words'] = {}
+                word_dict['counter']['URL_with_most_words'][url] = len(token_list)
+            
+            # If the URL_with_most_words is empty, add the new website information
+        except IndexError:
+            word_dict['counter']['URL_with_most_words'][url] = len(token_list)
+
+        # Populate the word list dictionary
+        for token in token_list_without_stopwords:
+            # If the word is not in the dictionary, make an entry
+            # and set its frequency to 1
+            if token not in word_dict['word_list']:
+                word_dict['word_list'][token] = 1
+
+            # If the word is already in the dictionary, increment its frequency by 1
+            else:
+                word_dict['word_list'][token] += 1
+
+        # Sort the word list by value (non-ascending), and then by key (alphabetical)
+        sorted_word_list = sorted(word_dict['word_list'].items(), key=lambda item: (-item[1], item[0]))
+        # Put the dictionary into an OrderedDict to conserve its order
+        sorted_word_list = collections.OrderedDict(sorted_word_list)
+        # Copy the dictionary to get top 50 words with most frequency
+        top_50 = sorted_word_list.copy()
         
-        print(url)
-        print(tokenize(text))
-        # print(stopwords.words('english'))
+        # Remove all entries that are beyond the first 50 entries
+        while len(top_50) > 50:
+            top_50.popitem()
 
-        time.sleep(20)
+        # Add the words list dictionary and top 50 frequent word dictionary
+        # to the original dictionary
+        word_dict['word_list'] = sorted_word_list
+        word_dict['counter']['50_most_common_words'] = top_50
 
+        # Dump the python dictionary to JSON format and save for future use
+        with open('word_dict.json', 'w') as json_file:
+            json.dump(word_dict, json_file)
 
     except AttributeError:
         print("Status Code: ", resp.status, "\nError Message:", resp.error)
 
+
 def get_link_dict(link_list):
-    with open('link_dict.json', 'r') as json_file:
-        link_dict = json.load(json_file)
+    try:
+        with open('link_dict.json', 'r') as json_file:
+            link_dict = json.load(json_file)
+    except json.decoder.JSONDecodeError:
+        link_dict = {
+            'counter': {
+                'total_unique_pages': 0,
+                'ics.uci.edu_subdomains': {}
+            }
+        }
 
     for link in link_list:
         parsed_url = urlparse(link)
@@ -214,25 +291,27 @@ def get_link_dict(link_list):
         # Add it along its subdomain and path
         if domain not in link_dict:
             link_dict[domain] = [{subdomain: [path]}]
-            link_dict['counter']['total_unique_pages'] += 1     # Increment unique page count
-            
+            # Increment unique page count
+            link_dict['counter']['total_unique_pages'] += 1
+
             # Increment ics.uc.edu subdomain count
             if domain == 'ics.uci.edu':
                 link_dict['counter']['ics.uci.edu_subdomains'][subdomain] = 1
-        
+
         # If the domain is in the dictionary
         else:
             # Check whether subdomain is in the dictionary
             for nested_dict in link_dict[domain]:
                 if subdomain in nested_dict:
                     subdomain_found = True
-            
+
             # If subdomain is not in the dictionary
             # Add the subdomain and its path
             if not subdomain_found:
                 link_dict[domain].append({subdomain: [path]})
-                link_dict['counter']['total_unique_pages'] += 1     # Increment unique page count
-        
+                # Increment unique page count
+                link_dict['counter']['total_unique_pages'] += 1
+
                 # Increment ics.uc.edu subdomain count
                 if domain == 'ics.uci.edu':
                     link_dict['counter']['ics.uci.edu_subdomains'][subdomain] = 1
@@ -246,18 +325,16 @@ def get_link_dict(link_list):
                     if subdomain in sub:
                         if path not in sub[subdomain]:
                             sub[subdomain].append(path)
-                            link_dict['counter']['total_unique_pages'] += 1     # Increment unique page count
-                
+                            # Increment unique page count
+                            link_dict['counter']['total_unique_pages'] += 1
+
                             # Increment ics.uc.edu subdomain count
                             if domain == 'ics.uci.edu':
                                 link_dict['counter']['ics.uci.edu_subdomains'][subdomain] += 1
 
-
-    # pp = pprint.PrettyPrinter(indent=2)
-    # pp.pprint(link_dict)
-
     with open('link_dict.json', 'w') as json_file:
         json.dump(link_dict, json_file)
+
 
 def write_report():
     # Open the json file to get data on unique pages and subdomains of ics.uci.edu  
@@ -289,33 +366,29 @@ def write_report():
         for subdomain, count  in data1['counter']['ics.uci.edu_subdomains'].items():
             report_file.write('http://{}.ics.uci.edu, {}\n'.format(subdomain, count))
 
-def get_permission(url):
-    # try:
-    #     print("-"*40)
-    #     parsed = urlparse(url)
-    #     robots = 'https://' + parsed.netloc + '/robots.txt'
-    #     page = requests.get(robots)
-    #     soup = BeautifulSoup(page.content, 'html.parser')
-    #     data = soup.get_text()
 
-    #     start_index = data.find('User-agent: *')
-    #     end_index = data.find('User-agent:',start_index) 
-    #     pattern = "Disallow:\|(.*?)\|\n"
-    #     if start_index != -1:
-    #         print(data.find('Disallow:', index))
-    #     else:
-    #         print('No user-agent: *')
+def reset_json_files():
+    link_dict = {
+        'counter': {
+            'total_unique_pages': 0,
+            'ics.uci.edu_subdomains': {}
+        }
+    }
+
+    word_dict = {
+        'counter': {
+            'URL_with_most_words': {},
+            '50_most_common_words': {}
+        },
+        'URL_list': {},
+        'word_list': {}
+    }
+
+    with open('link_dict.json', 'w') as json_file:
+        json.dump(link_dict, json_file)
+
+    with open ('word_dict.json', 'w') as json_file:
+        json.dump(word_dict, json_file)
 
 
-    # except TypeError:
-    #     print("TypeError for ", parsed)
-    #     raise
-    pass
-
-if __name__ == '__main__':
-    # tokenizer("this isn't a word what about mother-in-law but this uses the punctuations like , and . !@#$%^&*()-= and.also")
-    # tokenizer('fly flew flown, eat eaten, have has had, go goes gone going went')
-    # tokenizer('is am are was were been being')
-    # tokenize('isn\'t')
-    # reset_link_dict()
-    pass
+reset_json_files()
