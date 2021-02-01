@@ -16,6 +16,7 @@ from utils import get_logger
 from constants import VALID_URLS, BLACKLISTED_URLS, REMOVE_QUERY
 
 import time
+import requests
 
 scraper_logger = get_logger("SCRAPER")
 crawler_logger = get_logger("CRAWLER")
@@ -45,6 +46,7 @@ def extract_next_links(url, resp):
     next_link = []
     try:
         if 200 <= resp.status <= 399:
+            get_permission(url)
             parsed = urlparse(url)
             host = "https://" + parsed.netloc
 
@@ -258,21 +260,56 @@ def get_link_dict(link_list):
         json.dump(link_dict, json_file)
 
 def write_report():
-    # Open the json file to get data 
+    # Open the json file to get data on unique pages and subdomains of ics.uci.edu  
     with open('link_dict.json', 'r') as json_file:
-        data = json.load(json_file)
+        data1 = json.load(json_file)
+
+    # Open the json file to get data on longest page and 50 most common words
+    with open('word_dict.json', 'r') as json_file:
+        data2 = json.load(json_file)
 
     # Open the text file to write the report 
     with open('report.txt', 'w') as report_file: 
         # 1. How many unique pages did you find?
-        report_file.write('Total Unique Pages: {}\n\n'.format(data['counter']['total_unique_pages']))
+        report_file.write('Total Unique Pages: {}\n\n'.format(data1['counter']['total_unique_pages']))
+
+        # 2. What is the longest page in terms of the number of words?
+        for url, count in data2['counter']['URL_with_most_words'].items():
+            report_file.write('The longest page in terms of the number of words: {}\n   With the total of {} words\n\n'.format(url, count))
+
+        # 3. What are the 50 most common words in the entire set of pages crawled under these domains?
+        i = 1
+        report_file.write('The 50 most common words in the entire set of pages crawled under these domains:\n')
+        for word, count in data2['counter']['50_most_common_words'].items():
+            report_file.write('{}. {}, {}\n'.format(i, word, count))
+            i += 1
 
         # 4. How many subdomains did you find in the ics.uci.edu domain?
-        report_file.write('Total ics.uci.edu subdomain, written in [URL, number] format:\n')
-        for subdomain, count  in data['counter']['ics.uci.edu_subdomains'].items():
+        report_file.write('\nTotal ics.uci.edu subdomain, written in [URL, number] format:\n')
+        for subdomain, count  in data1['counter']['ics.uci.edu_subdomains'].items():
             report_file.write('http://{}.ics.uci.edu, {}\n'.format(subdomain, count))
 
-def get_permission():
+def get_permission(url):
+    # try:
+    #     print("-"*40)
+    #     parsed = urlparse(url)
+    #     robots = 'https://' + parsed.netloc + '/robots.txt'
+    #     page = requests.get(robots)
+    #     soup = BeautifulSoup(page.content, 'html.parser')
+    #     data = soup.get_text()
+
+    #     start_index = data.find('User-agent: *')
+    #     end_index = data.find('User-agent:',start_index) 
+    #     pattern = "Disallow:\|(.*?)\|\n"
+    #     if start_index != -1:
+    #         print(data.find('Disallow:', index))
+    #     else:
+    #         print('No user-agent: *')
+
+
+    # except TypeError:
+    #     print("TypeError for ", parsed)
+    #     raise
     pass
 
 if __name__ == '__main__':

@@ -1,7 +1,60 @@
-How many unique pages did you find?
-Total Unique Pages: 3934
+Total Unique Pages: 3937
 
-How many subdomains did you find in the ics.uci.edu domain?
+The longest page in terms of the number of words: https://futurehealth.ics.uci.edu/projects
+   With the total of 9476 words
+
+The 50 most common words in the entire set of pages crawled under these domains:
+1. statistics, 738
+2. data, 668
+3. uci, 583
+4. health, 507
+5. science, 382
+6. 2020, 366
+7. research, 339
+8. news, 298
+9. statistical, 286
+10. project, 282
+11. computer, 243
+12. school, 238
+13. information, 237
+14. professor, 221
+15. students, 221
+16. faculty, 214
+17. use, 209
+18. model, 206
+19. new, 205
+20. department, 203
+21. graduate, 196
+22. 2021, 194
+23. work, 189
+24. bren, 177
+25. center, 177
+26. donald, 173
+27. course, 170
+28. study, 168
+29. current, 167
+30. future, 167
+31. develop, 165
+32. contact, 163
+33. consult, 158
+34. trend, 155
+35. program, 150
+36. opportunities, 148
+37. october, 144
+38. technology, 144
+39. master, 138
+40. 15, 136
+41. people, 135
+42. seminars, 135
+43. degrees, 134
+44. county, 133
+45. list, 133
+46. service, 133
+47. 2019, 131
+48. time, 131
+49. ph, 130
+50. resources, 130
+
 Total ics.uci.edu subdomain, written in [URL, number] format:
 http://mds.ics.uci.edu, 3
 http://www.ics.uci.edu, 1463
