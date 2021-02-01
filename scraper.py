@@ -1,64 +1,378 @@
 import re
-from urllib.parse import urlparse
+import ssl
+import os
+import json
+import collections
+
+import nltk
+from nltk.tokenize import RegexpTokenizer
+from nltk.stem import WordNetLemmatizer
+from nltk.corpus import stopwords
+
+from urllib.parse import urlparse, urldefrag, urljoin
 from bs4 import BeautifulSoup
-import lxml
-import requests
-
 from utils import get_logger
+from constants import VALID_URLS, BLACKLISTED_URLS, REMOVE_QUERY
 
-VALID_URLS = {'ics.uci.edu', '.cs.uci.edu', '.informatics.uci.edu', '.stat.uci.edu', 'today.uci.edu'}
+
+scraper_logger = get_logger("SCRAPER")
+crawler_logger = get_logger("CRAWLER")
+
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
-    return [link for link in links if is_valid(link)]
+    link_list = filter_links(links)
+
+    if 200 <= resp.status <= 399:
+        get_link_dict(link_list)
+        scrape_words(url, resp)
+        write_report()
+
+    return link_list
+
 
 def extract_next_links(url, resp):
     next_link = []
     try:
-        soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
-        for link in soup.findAll('a'):
-            try:
-                next_link.append(link['href'])
-    
-            # href attribute does not exist in <a> tag.
-            except KeyError:
-                print("Status Code:", resp.status, "\nError Message: href attribute does not exist.")
-    
+        if 200 <= resp.status <= 399:
+            parsed = urlparse(url)
+            host = "https://" + parsed.netloc
+
+            soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
+            for link in soup.findAll('a'):
+                try:
+                    # constructing absolute URLs, avoiding duplicate contents
+                    l = urljoin(host, link['href'])
+                    next_link.append(urldefrag(l)[0])
+
+                # href attribute does not exist in <a> tag.
+                except KeyError:
+                    print("Status Code:", resp.status,
+                          "\nError Message: href attribute does not exist.")
+        else:
+            print("Status Code:", resp.status, " is not between 200 - 399")
+
     # Checks for restricted page.
     except AttributeError:
         print("Status Code:", resp.status, "\nError Message:", resp.error)
 
     return next_link
 
+
+def filter_links(links):
+    """
+    Filters links.
+    """
+    link_list = []
+    for link in links:
+        if is_valid(link):
+            added_link = link
+
+            # Filter queries that lead to same website.
+            for rq in REMOVE_QUERY:
+                if rq in link and '?' in link:
+                    added_link = link[:link.find('?')]
+                    scraper_logger.info(f'Got {added_link} from {link}')
+
+            # Filter links with no trailing slash after
+            # domain name.
+            parsed_url = urlparse(link)
+            if parsed_url.path == '':
+                added_link += '/'
+
+            link_list.append(added_link)
+
+    return link_list
+
+  
 def is_valid(url):
     try:
         parsed = urlparse(url)
         if parsed.scheme not in set(["http", "https"]):
             return False
 
-        valid_domain = False
-
-        # Check Domain : url needs to be in the Valid url set
+        valid_url = False
         for domain in VALID_URLS:
             if domain in parsed.netloc:
-                if parsed.netloc == 'today.uci.edu' and parsed.path[:41] == '/department/information_computer_sciences':
-                    valid_domain = True
+                if 'today.uci.edu' in parsed.netloc and '/department/information_computer_sciences' == parsed.path[:41]:
+                    valid_url = True
                 else:
-                    valid_domain = True
+                    valid_url = True
 
-        if valid_domain == False:
+        if valid_url == False:
+            return False
+
+        for bl in BLACKLISTED_URLS:
+            if bl in url:
+                return False
+
+        if re.match(
+            r".*\.(css|js|bmp|gif|jpe?g|ico"
+            + r"|png|tiff?|mid|mp2|mp3|mp4"
+            + r"|wav|avi|mov|mpg|mpeg|ram|m4v|mkv|ogg|ogv|pdf|bam|sam"
+            + r"|ps|eps|tex|ppt|ppsx|pptx|doc|docx|xls|xlsx|names"
+            + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
+            + r"|epub|dll|cnf|tgz|sha1|odc|scm"
+            + r"|thmx|mso|arff|rtf|jar|csv"
+                + r"|rm|smil|wmv|swf|wma|war|zip|rar|gz|z|zip)$", parsed.query.lower()):
             return False
 
         return not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
             + r"|png|tiff?|mid|mp2|mp3|mp4"
-            + r"|wav|avi|mov|mpeg|ram|m4v|mkv|ogg|ogv|pdf"
-            + r"|ps|eps|tex|ppt|pptx|doc|docx|xls|xlsx|names"
+            + r"|wav|avi|mov|mpg|mpeg|ram|m4v|mkv|ogg|ogv|pdf|bam|sam"
+            + r"|ps|eps|tex|ppt|ppsx|pptx|doc|docx|xls|xlsx|names"
             + r"|data|dat|exe|bz2|tar|msi|bin|7z|psd|dmg|iso"
-            + r"|epub|dll|cnf|tgz|sha1"
+            + r"|epub|dll|cnf|tgz|sha1|odc|scm"
             + r"|thmx|mso|arff|rtf|jar|csv"
-            + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())
+            + r"|rm|smil|wmv|swf|wma|war|zip|rar|gz|z|zip)$", parsed.path.lower())
 
     except TypeError:
-        print ("TypeError for ", parsed)
+        print("TypeError for ", parsed)
         raise
+
+
+def set_up_ssl():
+    try:
+        _create_unverified_https_context = ssl._create_unverified_context
+    except AttributeError:
+        pass
+    else:
+        ssl._create_default_https_context = _create_unverified_https_context
+
+
+def download_nltk_library():
+    # Set path for nltk library.
+    nltk.data.path.append('./nltk_data/')
+
+    if not os.path.exists('./nltk_data/corpora'):
+        # Set up ssl for nltk library download.
+        set_up_ssl()
+        # Download wordnet from nltk library.
+        nltk.download('wordnet', download_dir='./nltk_data/')
+        # Download stopwords from nltk library.
+        nltk.download('stopwords', download_dir='./nltk_data/')
+
+
+def tokenize(text):
+    # Regex tokenizer. Checks for alphanumeric characters.
+    re_tokenizer = RegexpTokenizer('[a-zA-Z0-9]+')
+    re_tokens = re_tokenizer.tokenize(text.lower())
+
+    # Lemmatizer. Checks for word roots words.
+    # Includes root words of verbes, and plural forms.
+    lemmatizer = WordNetLemmatizer()
+    tokens = [lemmatizer.lemmatize(w, pos="v") for w in re_tokens]
+
+    return tokens
+
+
+def scrape_words(url, resp):
+
+    try:
+        # Read the current state of json file and load it to word_dict
+        with open('word_dict.json', 'r') as json_file:
+            word_dict = json.load(json_file)
+        # If the file is empty, set word_dict to an empty dict
+    except json.decoder.JSONDecodeError:
+        word_dict = {
+            'counter': {
+                'URL_with_most_words': {},
+                '50_most_common_words': {}
+            },
+            'URL_list': {},
+            'word_list': {}
+        }
+
+    download_nltk_library()
+
+    try:
+        soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
+        text = soup.text
+        token_list = tokenize(text)
+        stopword_list = stopwords.words('english')
+        token_list_without_stopwords = [
+            token for token in token_list if token not in stopword_list]
+
+        # print(url)
+        # print("\nText:", token_list)
+        # print("\nStopwords:", stopword_list)
+        # print("\nText without stopwords:", token_list_without_stopwords)
+
+        # Add URL to URL_list with number of words in it
+        word_dict['URL_list'][url] = len(token_list)
+
+        try:
+            # Find out current most number of words in a website
+            current_number_of_words = list(word_dict['counter']['URL_with_most_words'].values())[0]
+            # If the new website has greater number of words
+            # replace the URL_with_most_words of words
+            if len(token_list) > current_number_of_words:
+                word_dict['counter']['URL_with_most_words'] = {}
+                word_dict['counter']['URL_with_most_words'][url] = len(token_list)
+            
+            # If the URL_with_most_words is empty, add the new website information
+        except IndexError:
+            word_dict['counter']['URL_with_most_words'][url] = len(token_list)
+
+        # Populate the word list dictionary
+        for token in token_list_without_stopwords:
+            # If the word is not in the dictionary, make an entry
+            # and set its frequency to 1
+            if token not in word_dict['word_list']:
+                word_dict['word_list'][token] = 1
+
+            # If the word is already in the dictionary, increment its frequency by 1
+            else:
+                word_dict['word_list'][token] += 1
+
+        # Sort the word list by value (non-ascending), and then by key (alphabetical)
+        sorted_word_list = sorted(word_dict['word_list'].items(), key=lambda item: (-item[1], item[0]))
+        # Put the dictionary into an OrderedDict to conserve its order
+        sorted_word_list = collections.OrderedDict(sorted_word_list)
+        # Copy the dictionary to get top 50 words with most frequency
+        top_50 = sorted_word_list.copy()
+        
+        # Remove all entries that are beyond the first 50 entries
+        while len(top_50) > 50:
+            top_50.popitem()
+
+        # Add the words list dictionary and top 50 frequent word dictionary
+        # to the original dictionary
+        word_dict['word_list'] = sorted_word_list
+        word_dict['counter']['50_most_common_words'] = top_50
+
+        # Dump the python dictionary to JSON format and save for future use
+        with open('word_dict.json', 'w') as json_file:
+            json.dump(word_dict, json_file)
+
+    except AttributeError:
+        print("Status Code: ", resp.status, "\nError Message:", resp.error)
+
+
+def get_link_dict(link_list):
+    try:
+        with open('link_dict.json', 'r') as json_file:
+            link_dict = json.load(json_file)
+    except json.decoder.JSONDecodeError:
+        link_dict = {
+            'counter': {
+                'total_unique_pages': 0,
+                'ics.uci.edu_subdomains': {}
+            }
+        }
+
+    for link in link_list:
+        parsed_url = urlparse(link)
+
+        domain = parsed_url.netloc.split('.', 1)[1]
+        subdomain = parsed_url.netloc.split('.', 1)[0]
+        path = parsed_url.path
+
+        subdomain_found = False
+
+        # If domain is not in the dictionary
+        # Add it along its subdomain and path
+        if domain not in link_dict:
+            link_dict[domain] = [{subdomain: [path]}]
+            # Increment unique page count
+            link_dict['counter']['total_unique_pages'] += 1
+
+            # Increment ics.uc.edu subdomain count
+            if domain == 'ics.uci.edu':
+                link_dict['counter']['ics.uci.edu_subdomains'][subdomain] = 1
+
+        # If the domain is in the dictionary
+        else:
+            # Check whether subdomain is in the dictionary
+            for nested_dict in link_dict[domain]:
+                if subdomain in nested_dict:
+                    subdomain_found = True
+
+            # If subdomain is not in the dictionary
+            # Add the subdomain and its path
+            if not subdomain_found:
+                link_dict[domain].append({subdomain: [path]})
+                # Increment unique page count
+                link_dict['counter']['total_unique_pages'] += 1
+
+                # Increment ics.uc.edu subdomain count
+                if domain == 'ics.uci.edu':
+                    link_dict['counter']['ics.uci.edu_subdomains'][subdomain] = 1
+
+            # If subdomain is in the dictionary
+            else:
+                for sub in link_dict[domain]:
+                    # Check if path is in the dictionary
+                    # If it does not, add to the dictionary
+                    # to avoid redundancy.
+                    if subdomain in sub:
+                        if path not in sub[subdomain]:
+                            sub[subdomain].append(path)
+                            # Increment unique page count
+                            link_dict['counter']['total_unique_pages'] += 1
+
+                            # Increment ics.uc.edu subdomain count
+                            if domain == 'ics.uci.edu':
+                                link_dict['counter']['ics.uci.edu_subdomains'][subdomain] += 1
+
+    with open('link_dict.json', 'w') as json_file:
+        json.dump(link_dict, json_file)
+
+
+def write_report():
+    # Open the json file to get data on unique pages and subdomains of ics.uci.edu  
+    with open('link_dict.json', 'r') as json_file:
+        data1 = json.load(json_file)
+
+    # Open the json file to get data on longest page and 50 most common words
+    with open('word_dict.json', 'r') as json_file:
+        data2 = json.load(json_file)
+
+    # Open the text file to write the report 
+    with open('report.txt', 'w') as report_file: 
+        # 1. How many unique pages did you find?
+        report_file.write('Total Unique Pages: {}\n\n'.format(data1['counter']['total_unique_pages']))
+
+        # 2. What is the longest page in terms of the number of words?
+        for url, count in data2['counter']['URL_with_most_words'].items():
+            report_file.write('The longest page in terms of the number of words: {}\n   With the total of {} words\n\n'.format(url, count))
+
+        # 3. What are the 50 most common words in the entire set of pages crawled under these domains?
+        i = 1
+        report_file.write('The 50 most common words in the entire set of pages crawled under these domains:\n')
+        for word, count in data2['counter']['50_most_common_words'].items():
+            report_file.write('{}. {}, {}\n'.format(i, word, count))
+            i += 1
+
+        # 4. How many subdomains did you find in the ics.uci.edu domain?
+        report_file.write('\nTotal ics.uci.edu subdomain, written in [URL, number] format:\n')
+        for subdomain, count  in data1['counter']['ics.uci.edu_subdomains'].items():
+            report_file.write('http://{}.ics.uci.edu, {}\n'.format(subdomain, count))
+
+
+def reset_json_files():
+    link_dict = {
+        'counter': {
+            'total_unique_pages': 0,
+            'ics.uci.edu_subdomains': {}
+        }
+    }
+
+    word_dict = {
+        'counter': {
+            'URL_with_most_words': {},
+            '50_most_common_words': {}
+        },
+        'URL_list': {},
+        'word_list': {}
+    }
+
+    with open('link_dict.json', 'w') as json_file:
+        json.dump(link_dict, json_file)
+
+    with open ('word_dict.json', 'w') as json_file:
+        json.dump(word_dict, json_file)
+
+
+reset_json_files()
