@@ -2,6 +2,7 @@ import re
 import ssl
 import os
 import json
+import collections
 
 import nltk
 from nltk.tokenize import RegexpTokenizer
@@ -13,31 +14,19 @@ from bs4 import BeautifulSoup
 from utils import get_logger
 from constants import VALID_URLS, BLACKLISTED_URLS, REMOVE_QUERY
 
-import time
 
 scraper_logger = get_logger("SCRAPER")
 crawler_logger = get_logger("CRAWLER")
-
-
-def reset_link_dict():
-    link_dict = {
-        'counter': {
-            'total_unique_pages': 0,
-            'ics.uci.edu_subdomains': {}
-        }
-    }
-
-    with open('link_dict.json', 'w') as json_file:
-        json.dump(link_dict, json_file)
 
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
     link_list = filter_links(links)
 
-    # get_link_dict(link_list)
-    scrape_words(url, resp)
-    write_report()
+    if 200 <= resp.status <= 399:
+        get_link_dict(link_list)
+        scrape_words(url, resp)
+        write_report()
 
     return link_list
 
@@ -190,7 +179,9 @@ def scrape_words(url, resp):
             'counter': {
                 'URL_with_most_words': {},
                 '50_most_common_words': {}
-            }
+            },
+            'URL_list': {},
+            'word_list': {}
         }
 
     download_nltk_library()
@@ -203,17 +194,57 @@ def scrape_words(url, resp):
         token_list_without_stopwords = [
             token for token in token_list if token not in stopword_list]
 
-        print(url)
-        print("\nText:", token_list)
-        print("\nStopwords:", stopword_list)
-        print("\nText without stopwords:", token_list_without_stopwords)
+        # print(url)
+        # print("\nText:", token_list)
+        # print("\nStopwords:", stopword_list)
+        # print("\nText without stopwords:", token_list_without_stopwords)
 
-        word_dict[url] = len(token_list)
+        # Add URL to URL_list with number of words in it
+        word_dict['URL_list'][url] = len(token_list)
 
+        try:
+            # Find out current most number of words in a website
+            current_number_of_words = list(word_dict['counter']['URL_with_most_words'].values())[0]
+            # If the new website has greater number of words
+            # replace the URL_with_most_words of words
+            if len(token_list) > current_number_of_words:
+                word_dict['counter']['URL_with_most_words'] = {}
+                word_dict['counter']['URL_with_most_words'][url] = len(token_list)
+            
+            # If the URL_with_most_words is empty, add the new website information
+        except IndexError:
+            word_dict['counter']['URL_with_most_words'][url] = len(token_list)
+
+        # Populate the word list dictionary
+        for token in token_list_without_stopwords:
+            # If the word is not in the dictionary, make an entry
+            # and set its frequency to 1
+            if token not in word_dict['word_list']:
+                word_dict['word_list'][token] = 1
+
+            # If the word is already in the dictionary, increment its frequency by 1
+            else:
+                word_dict['word_list'][token] += 1
+
+        # Sort the word list by value (non-ascending), and then by key (alphabetical)
+        sorted_word_list = sorted(word_dict['word_list'].items(), key=lambda item: (-item[1], item[0]))
+        # Put the dictionary into an OrderedDict to conserve its order
+        sorted_word_list = collections.OrderedDict(sorted_word_list)
+        # Copy the dictionary to get top 50 words with most frequency
+        top_50 = sorted_word_list.copy()
+        
+        # Remove all entries that are beyond the first 50 entries
+        while len(top_50) > 50:
+            top_50.popitem()
+
+        # Add the words list dictionary and top 50 frequent word dictionary
+        # to the original dictionary
+        word_dict['word_list'] = sorted_word_list
+        word_dict['counter']['50_most_common_words'] = top_50
+
+        # Dump the python dictionary to JSON format and save for future use
         with open('word_dict.json', 'w') as json_file:
             json.dump(word_dict, json_file)
-
-        time.sleep(3)
 
     except AttributeError:
         print("Status Code: ", resp.status, "\nError Message:", resp.error)
@@ -290,25 +321,58 @@ def get_link_dict(link_list):
 
 
 def write_report():
-    # Open the json file to get data 
+    # Open the json file to get data on unique pages and subdomains of ics.uci.edu  
     with open('link_dict.json', 'r') as json_file:
-        data = json.load(json_file)
+        data1 = json.load(json_file)
+
+    # Open the json file to get data on longest page and 50 most common words
+    with open('word_dict.json', 'r') as json_file:
+        data2 = json.load(json_file)
 
     # Open the text file to write the report 
     with open('report.txt', 'w') as report_file: 
         # 1. How many unique pages did you find?
-        report_file.write('Total Unique Pages: {}\n\n'.format(data['counter']['total_unique_pages']))
+        report_file.write('Total Unique Pages: {}\n\n'.format(data1['counter']['total_unique_pages']))
+
+        # 2. What is the longest page in terms of the number of words?
+        for url, count in data2['counter']['URL_with_most_words'].items():
+            report_file.write('The longest page in terms of the number of words: {}\n   With the total of {} words\n\n'.format(url, count))
+
+        # 3. What are the 50 most common words in the entire set of pages crawled under these domains?
+        i = 1
+        report_file.write('The 50 most common words in the entire set of pages crawled under these domains:\n')
+        for word, count in data2['counter']['50_most_common_words'].items():
+            report_file.write('{}. {}, {}\n'.format(i, word, count))
+            i += 1
 
         # 4. How many subdomains did you find in the ics.uci.edu domain?
-        report_file.write('Total ics.uci.edu subdomain, written in [URL, number] format:\n')
-        for subdomain, count  in data['counter']['ics.uci.edu_subdomains'].items():
+        report_file.write('\nTotal ics.uci.edu subdomain, written in [URL, number] format:\n')
+        for subdomain, count  in data1['counter']['ics.uci.edu_subdomains'].items():
             report_file.write('http://{}.ics.uci.edu, {}\n'.format(subdomain, count))
 
 
-if __name__ == '__main__':
-    # tokenizer("this isn't a word what about mother-in-law but this uses the punctuations like , and . !@#$%^&*()-= and.also")
-    # tokenizer('fly flew flown, eat eaten, have has had, go goes gone going went')
-    # tokenizer('is am are was were been being')
-    # tokenize('isn\'t')
-    # reset_link_dict()
-    pass
+def reset_json_files():
+    link_dict = {
+        'counter': {
+            'total_unique_pages': 0,
+            'ics.uci.edu_subdomains': {}
+        }
+    }
+
+    word_dict = {
+        'counter': {
+            'URL_with_most_words': {},
+            '50_most_common_words': {}
+        },
+        'URL_list': {},
+        'word_list': {}
+    }
+
+    with open('link_dict.json', 'w') as json_file:
+        json.dump(link_dict, json_file)
+
+    with open ('word_dict.json', 'w') as json_file:
+        json.dump(word_dict, json_file)
+
+
+reset_json_files()
