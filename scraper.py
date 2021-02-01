@@ -84,7 +84,7 @@ def filter_links(links):
 
     return link_list
 
-
+  
 def is_valid(url):
     try:
         parsed = urlparse(url)
