@@ -20,9 +20,19 @@ crawler_logger = get_logger("CRAWLER")
 
 
 def scraper(url, resp):
+    """
+    Scrapes URL from the given webpage retrieved from the frontier.
+    Apply filter to the scraped URL and sends back to the frontier.
+    The webpage is also scraped for contents: words, domain, and subdomain.
+    Writes report of the gathered information after each scrape
+    """
+    # Extract all the links in the webpage
     links = extract_next_links(url, resp)
+    # Filter the links with query and trailing slashes
     link_list = filter_links(links)
 
+    # Only scrape information if the webpage returns
+    # a status code within 200 to 399.
     if 200 <= resp.status <= 399:
         get_link_dict(link_list)
         scrape_words(url, resp)
@@ -133,6 +143,9 @@ def is_valid(url):
 
 
 def set_up_ssl():
+    """
+    Sets up connection for NLTK library download.
+    """
     try:
         _create_unverified_https_context = ssl._create_unverified_context
     except AttributeError:
@@ -142,6 +155,11 @@ def set_up_ssl():
 
 
 def download_nltk_library():
+    """
+    Download NLTK libraray.
+    Wordnet: Word map that checks for plural / root words
+    Stopwords: Default conventional English stop words list
+    """
     # Set path for nltk library.
     nltk.data.path.append('./nltk_data/')
 
@@ -155,6 +173,9 @@ def download_nltk_library():
 
 
 def tokenize(text):
+    """
+    Takes a string of text and tokenize it using NLTK library.
+    """
     # Regex tokenizer. Checks for alphanumeric characters.
     re_tokenizer = RegexpTokenizer('[a-zA-Z0-9]+')
     re_tokens = re_tokenizer.tokenize(text.lower())
@@ -168,7 +189,10 @@ def tokenize(text):
 
 
 def scrape_words(url, resp):
-
+    """
+    Parse text inside a webpage. Gather information and store
+    in a JSON formatted file for future analysis.
+    """
     try:
         # Read the current state of json file and load it to word_dict
         with open('word_dict.json', 'r') as json_file:
@@ -187,30 +211,29 @@ def scrape_words(url, resp):
     download_nltk_library()
 
     try:
+        # Open the URL and parse text in the page.
         soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
         text = soup.text
+
         token_list = tokenize(text)
         stopword_list = stopwords.words('english')
         token_list_without_stopwords = [
             token for token in token_list if token not in stopword_list]
-
-        # print(url)
-        # print("\nText:", token_list)
-        # print("\nStopwords:", stopword_list)
-        # print("\nText without stopwords:", token_list_without_stopwords)
 
         # Add URL to URL_list with number of words in it
         word_dict['URL_list'][url] = len(token_list)
 
         try:
             # Find out current most number of words in a website
-            current_number_of_words = list(word_dict['counter']['URL_with_most_words'].values())[0]
+            current_number_of_words = list(
+                word_dict['counter']['URL_with_most_words'].values())[0]
             # If the new website has greater number of words
             # replace the URL_with_most_words of words
             if len(token_list) > current_number_of_words:
                 word_dict['counter']['URL_with_most_words'] = {}
-                word_dict['counter']['URL_with_most_words'][url] = len(token_list)
-            
+                word_dict['counter']['URL_with_most_words'][url] = len(
+                    token_list)
+
             # If the URL_with_most_words is empty, add the new website information
         except IndexError:
             word_dict['counter']['URL_with_most_words'][url] = len(token_list)
@@ -227,12 +250,13 @@ def scrape_words(url, resp):
                 word_dict['word_list'][token] += 1
 
         # Sort the word list by value (non-ascending), and then by key (alphabetical)
-        sorted_word_list = sorted(word_dict['word_list'].items(), key=lambda item: (-item[1], item[0]))
+        sorted_word_list = sorted(
+            word_dict['word_list'].items(), key=lambda item: (-item[1], item[0]))
         # Put the dictionary into an OrderedDict to conserve its order
         sorted_word_list = collections.OrderedDict(sorted_word_list)
         # Copy the dictionary to get top 50 words with most frequency
         top_50 = sorted_word_list.copy()
-        
+
         # Remove all entries that are beyond the first 50 entries
         while len(top_50) > 50:
             top_50.popitem()
@@ -251,6 +275,12 @@ def scrape_words(url, resp):
 
 
 def get_link_dict(link_list):
+    """
+    Gathers information about domains and subdomains from URL that's given from the frontier.
+    Saves information to JSON file format for future uses.
+    """
+    # Open link_dict.json file
+    # Check for empty file Error
     try:
         with open('link_dict.json', 'r') as json_file:
             link_dict = json.load(json_file)
@@ -262,6 +292,7 @@ def get_link_dict(link_list):
             }
         }
 
+    # For every link in a page, parse the URL and count domains and subdomains
     for link in link_list:
         parsed_url = urlparse(link)
 
@@ -321,7 +352,7 @@ def get_link_dict(link_list):
 
 
 def write_report():
-    # Open the json file to get data on unique pages and subdomains of ics.uci.edu  
+    # Open the json file to get data on unique pages and subdomains of ics.uci.edu
     with open('link_dict.json', 'r') as json_file:
         data1 = json.load(json_file)
 
@@ -329,29 +360,37 @@ def write_report():
     with open('word_dict.json', 'r') as json_file:
         data2 = json.load(json_file)
 
-    # Open the text file to write the report 
-    with open('report.txt', 'w') as report_file: 
+    # Open the text file to write the report
+    with open('report.txt', 'w') as report_file:
         # 1. How many unique pages did you find?
-        report_file.write('Total Unique Pages: {}\n\n'.format(data1['counter']['total_unique_pages']))
+        report_file.write('Total Unique Pages: {}\n\n'.format(
+            data1['counter']['total_unique_pages']))
 
         # 2. What is the longest page in terms of the number of words?
         for url, count in data2['counter']['URL_with_most_words'].items():
-            report_file.write('The longest page in terms of the number of words: {}\n   With the total of {} words\n\n'.format(url, count))
+            report_file.write(
+                'The longest page in terms of the number of words: {}\n   With the total of {} words\n\n'.format(url, count))
 
         # 3. What are the 50 most common words in the entire set of pages crawled under these domains?
         i = 1
-        report_file.write('The 50 most common words in the entire set of pages crawled under these domains:\n')
+        report_file.write(
+            'The 50 most common words in the entire set of pages crawled under these domains:\n')
         for word, count in data2['counter']['50_most_common_words'].items():
             report_file.write('{}. {}, {}\n'.format(i, word, count))
             i += 1
 
         # 4. How many subdomains did you find in the ics.uci.edu domain?
-        report_file.write('\nTotal ics.uci.edu subdomain, written in [URL, number] format:\n')
-        for subdomain, count  in data1['counter']['ics.uci.edu_subdomains'].items():
-            report_file.write('http://{}.ics.uci.edu, {}\n'.format(subdomain, count))
+        report_file.write(
+            '\nTotal ics.uci.edu subdomain, written in [URL, number] format:\n')
+        for subdomain, count in data1['counter']['ics.uci.edu_subdomains'].items():
+            report_file.write(
+                'http://{}.ics.uci.edu, {}\n'.format(subdomain, count))
 
 
 def reset_json_files():
+    """
+    When the crawler starts, JSON files will be cleared.
+    """
     link_dict = {
         'counter': {
             'total_unique_pages': 0,
@@ -371,8 +410,9 @@ def reset_json_files():
     with open('link_dict.json', 'w') as json_file:
         json.dump(link_dict, json_file)
 
-    with open ('word_dict.json', 'w') as json_file:
+    with open('word_dict.json', 'w') as json_file:
         json.dump(word_dict, json_file)
 
 
+# Clears JSON files
 reset_json_files()
