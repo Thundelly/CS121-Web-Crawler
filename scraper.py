@@ -42,16 +42,23 @@ def scraper(url, resp):
 
 
 def extract_next_links(url, resp):
+    # Creating an empty list to store urls 
     next_link = []
     try:
+        # Check if the input url is valid (status between 200-399)
+        # If not valid, ignore the input url and return empty list
         if 200 <= resp.status <= 399:
+            # Prepare the input url to construct absolute URLs 
             parsed = urlparse(url)
             host = "https://" + parsed.netloc
 
+            # Extract data from HTML 
             soup = BeautifulSoup(resp.raw_response.content, 'html.parser')
+            # Find all urls within the input url 
             for link in soup.findAll('a'):
                 try:
-                    # constructing absolute URLs, avoiding duplicate contents
+                    # constructing absolute URLs from relative URLs and 
+                    # add the absolute URLs without the fragment part to next_link list
                     l = urljoin(host, link['href'])
                     next_link.append(urldefrag(l)[0])
 
@@ -60,6 +67,7 @@ def extract_next_links(url, resp):
                     print("Status Code:", resp.status,
                           "\nError Message: href attribute does not exist.")
         else:
+            # url is invalid
             print("Status Code:", resp.status, " is not between 200 - 399")
 
     # Checks for restricted page.
@@ -98,9 +106,13 @@ def filter_links(links):
 def is_valid(url):
     try:
         parsed = urlparse(url)
+
+        # Check if the input url has http or https
+        # If not, returns False
         if parsed.scheme not in set(["http", "https"]):
             return False
 
+        # Check if the input url witthin the valid domain set
         valid_url = False
         for domain in VALID_URLS:
             if domain in parsed.netloc:
@@ -112,10 +124,13 @@ def is_valid(url):
         if valid_url == False:
             return False
 
+        # Check if the input url is in the Blacklisted url set
+        # If yes, returns false 
         for bl in BLACKLISTED_URLS:
             if bl in url:
                 return False
 
+        # Check for the input url query that ends with one of these tags 
         if re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
             + r"|png|tiff?|mid|mp2|mp3|mp4"
@@ -127,6 +142,7 @@ def is_valid(url):
                 + r"|rm|smil|wmv|swf|wma|war|zip|rar|gz|z|zip)$", parsed.query.lower()):
             return False
 
+        # Check for the input url path that ends with one of these tags 
         return not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
             + r"|png|tiff?|mid|mp2|mp3|mp4"
