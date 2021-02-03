@@ -1,7 +1,7 @@
 Total Unique Pages: 9399
 
-The longest page in terms of the number of words: https://grape.ics.uci.edu/wiki/public/raw-attachment/wiki/cs221-2019-spring-project2/Team2StressTest.txt
-   With the total of 126713 words
+The longest page in terms of the number of words: http://www.ics.uci.edu/~kay/wordlist.txt 475850
+   With the total of 475850 words
 
 The 50 most common words in the entire set of pages crawled under these domains:
 1. research, 25409
