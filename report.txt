@@ -1,6 +1,6 @@
 Total Unique Pages: 9399
 
-The longest page in terms of the number of words: http://www.ics.uci.edu/~kay/wordlist.txt 475850
+The longest page in terms of the number of words: http://www.ics.uci.edu/~kay/wordlist.txt
    With the total of 475850 words
 
 The 50 most common words in the entire set of pages crawled under these domains:
