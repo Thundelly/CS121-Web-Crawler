@@ -26,12 +26,6 @@ class Frontier(object):
         # Load existing save file, or create one if it does not exist.
         self.save = shelve.open(self.config.save_file.replace('.db', ''))
         
-        # # Renaming shelve file. -- MacOS seems to add .db extensions to .shelve
-        # # file. This will provide a workaround such behavior.
-        # try:
-        #     os.rename('frontier.shelve.db', 'frontier.shelve')
-        # except FileNotFoundError:
-        #     pass
         
         if restart:
             reset_json_files()

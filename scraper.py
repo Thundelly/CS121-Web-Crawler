@@ -105,7 +105,7 @@ def filter_links(links):
 
     return link_list
 
-
+  
 def is_valid(url):
     """
     Checks if the URL given is a valid URL to crawl.
