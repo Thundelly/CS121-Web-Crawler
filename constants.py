@@ -23,7 +23,8 @@ BLACKLISTED_URLS = {
     'https://www.informatics.uci.edu/page',
     'https://www.cs.uci.edu/events',
     'https://www.informatics.uci.edu/very-top-footer-menu-items/news/page',
-    'https://cbcl.ics.uci.edu/wgEncodeBroadHistone'
+    'https://cbcl.ics.uci.edu/wgEncodeBroadHistone',
+    'http://computableplant.ics.uci.edu/alphasite/index-challenge.html'
 }
 
 REMOVE_QUERY = {

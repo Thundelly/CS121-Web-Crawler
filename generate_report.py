@@ -61,6 +61,6 @@ def generate_report():
         # 4. How many subdomains did you find in the ics.uci.edu domain?
         report_file.write(
             '\nTotal ics.uci.edu subdomain, written in [URL, number] format:\n')
-        for subdomain, count in data1['counter']['ics.uci.edu_subdomains'].items():
+        for subdomain, count in sorted(data1['counter']['ics.uci.edu_subdomains'].items(), key=lambda item: item[0].lower()):
             report_file.write(
                 'http://{}.ics.uci.edu, {}\n'.format(subdomain, count))
