@@ -5,7 +5,7 @@ from threading import Thread, RLock
 from queue import Queue, Empty
 
 from utils import get_logger, get_urlhash, normalize
-from scraper import is_valid
+from scraper import is_valid, reset_json_files
 
 class Frontier(object):
     def __init__(self, config, restart):
@@ -24,16 +24,17 @@ class Frontier(object):
                 f"Found save file {self.config.save_file}, deleting it.")
             os.remove(self.config.save_file)
         # Load existing save file, or create one if it does not exist.
-        self.save = shelve.open(self.config.save_file)
+        self.save = shelve.open(self.config.save_file.replace('.db', ''))
         
-        # Renaming shelve file. -- MacOS seems to add .db extensions to .shelve
-        # file. This will provide a workaround such behavior.
-        try:
-            os.rename('frontier.shelve.db', 'frontier.shelve')
-        except FileNotFoundError:
-            pass
+        # # Renaming shelve file. -- MacOS seems to add .db extensions to .shelve
+        # # file. This will provide a workaround such behavior.
+        # try:
+        #     os.rename('frontier.shelve.db', 'frontier.shelve')
+        # except FileNotFoundError:
+        #     pass
         
         if restart:
+            reset_json_files()
             for url in self.config.seed_urls:
                 self.add_url(url)
         else:

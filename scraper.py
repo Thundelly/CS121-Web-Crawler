@@ -207,6 +207,8 @@ def tokenize(text):
     # Includes root words of verbes, and plural forms.
     lemmatizer = WordNetLemmatizer()
     tokens = [lemmatizer.lemmatize(w, pos="v") for w in re_tokens]
+    # Check for tokens that are single characters and exclude them
+    tokens = [token for token in tokens if len(token) != 1]
 
     return tokens
 
@@ -385,4 +387,4 @@ def reset_json_files():
 
 
 # Clears JSON files
-reset_json_files()
+# reset_json_files()

@@ -2,9 +2,11 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="d9bba1f1-3321-41b4-84ea-65567303cc6f" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/config.ini" beforeDir="false" afterPath="$PROJECT_DIR$/config.ini" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/crawler/worker.py" beforeDir="false" afterPath="$PROJECT_DIR$/crawler/worker.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/scraper.py" beforeDir="false" afterPath="$PROJECT_DIR$/scraper.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/constants.py" beforeDir="false" afterPath="$PROJECT_DIR$/constants.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/crawler/frontier.py" beforeDir="false" afterPath="$PROJECT_DIR$/crawler/frontier.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/link_dict.json" beforeDir="false" afterPath="$PROJECT_DIR$/link_dict.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/report.txt" beforeDir="false" afterPath="$PROJECT_DIR$/report.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/word_dict.json" beforeDir="false" afterPath="$PROJECT_DIR$/word_dict.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -36,6 +38,7 @@
       <updated>1611730878456</updated>
       <workItem from="1611730881893" duration="102000" />
       <workItem from="1611730991824" duration="302000" />
+      <workItem from="1612342047986" duration="46000" />
     </task>
     <servers />
   </component>
